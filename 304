@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="zh-TW" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>班級聖誕魔法森之樹 🎄</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
+
+    body {
+      box-sizing: border-box;
+      overflow-x: hidden;
+      font-family: 'Noto Sans TC', sans-serif;
+      margin: 0;
+      background: #000814;
+    }
+    
+    #app {
+      min-height: 100vh;
+      position: relative;
+    }
+
+    /* 樹木容器與動畫 */
+    .tree-wrapper {
+      position: absolute;
+      transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 160px;
+    }
+
+    @keyframes wind {
+      0% { transform: rotate(-1.5deg) translateX(-1px); }
+      50% { transform: rotate(2deg) translateX(1px); }
+      100% { transform: rotate(-2deg) translateX(-0.5px); }
+    }
+
+    .tree-svg-container {
+      animation: wind 5s ease-in-out infinite alternate;
+      filter: drop-shadow(0 8px 15px rgba(0, 0, 0, 0.5));
+      transition: all 0.3s ease;
+    }
+
+    /* 裝飾燈泡閃爍 */
+    .light {
+      animation: blink 1.5s ease-in-out infinite alternate;
+    }
+    @keyframes blink {
+      from { opacity: 0.4; filter: brightness(1); }
+      to { opacity: 1; filter: brightness(1.5) drop-shadow(0 0 3px white); }
+    }
+
+    /* 收到祝福後的卡片掛飾 */
+    .card-ornament {
+      position: absolute;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+      animation: dangle 3s ease-in-out infinite alternate;
+    }
+    @keyframes dangle {
+      from { transform: rotate(-10deg); }
+      to { transform: rotate(10deg); }
+    }
+
+    /* 下雪動畫 */
+    .snowflake {
+      position: fixed;
+      top: -10px;
+      color: white;
+      pointer-events: none;
+      z-index: 50;
+      animation: fall linear infinite;
+    }
+    @keyframes fall {
+      0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+    }
+
+    .forest-container {
+      position: relative;
+      min-height: 75vh;
+      width: 100%;
+      margin-top: 2rem;
+      padding-bottom: 250px;
+    }
+
+    .glass {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    /* 卡片翻轉 */
+    .card { perspective: 1000px; cursor: pointer; }
+    .card-inner {
+      position: relative;
+      width: 100%; height: 100%;
+      transition: transform 0.8s;
+      transform-style: preserve-3d;
+    }
+    .card.flipped .card-inner { transform: rotateY(180deg); }
+    .card-front, .card-back {
+      position: absolute;
+      width: 100%; height: 100%;
+      backface-visibility: hidden;
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+    .card-front { background: linear-gradient(135deg, #d62828 0%, #780000 100%); color: white; border: 4px solid #ffc300; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    .card-back { background: #fffcf2; color: #252422; transform: rotateY(180deg); border: 4px solid #386641; overflow-y: auto; }
+  </style>
+ </head>
+ <body class="h-full">
+  <div id="app" class="w-full" style="background: linear-gradient(to bottom, #000814 0%, #001d3d 50%, #003566 100%);"></div>
+
+  <script>
+    let state = {
+      view: 'home',
+      trees: [
+        { id: 1, name: "陳小明", x: 15, y: 15, scale: 1.3, rot: -3 },
+        { id: 2, name: "林美美", x: 45, y: 10, scale: 1.1, rot: 2 },
+        { id: 3, name: "王老師", x: 75, y: 20, scale: 1.4, rot: 0 },
+        { id: 4, name: "張大強", x: 25, y: 45, scale: 1.2, rot: -2 },
+        { id: 5, name: "李莉莉", x: 60, y: 55, scale: 1.15, rot: 4 }
+      ],
+      cards: [],
+      selectedTreeId: null,
+      tempImage: null
+    };
+
+    // 下雪
+    setInterval(() => {
+      const snowflake = document.createElement('div');
+      snowflake.innerHTML = '❄';
+      snowflake.className = 'snowflake';
+      snowflake.style.left = Math.random() * 100 + 'vw';
+      snowflake.style.animationDuration = Math.random() * 3 + 4 + 's';
+      snowflake.style.fontSize = Math.random() * 10 + 10 + 'px';
+      document.body.appendChild(snowflake);
+      setTimeout(() => snowflake.remove(), 7000);
+    }, 450);
+
+    // 樹木基礎 SVG (含燈泡裝飾)
+    function TreeIcon(color) {
+      return `
+        <svg class="mx-auto" width="120" height="120" viewBox="0 0 100 100">
+            <!-- 樹幹 -->
+            <rect x="44" y="90" width="12" height="10" fill="#3d2b1f"/>
+            <!-- 樹層 -->
+            <path d="M50 5 L15 50 L30 50 L5 80 L20 80 L-5 100 L105 100 L80 80 L95 80 L70 50 L85 50 Z" fill="${color}"/>
+            <!-- 星星 -->
+            <path d="M50 2 L52 8 L58 8 L53 12 L55 18 L50 14 L45 18 L47 12 L42 8 L48 8 Z" fill="#ffc300" class="light"/>
+            <!-- 內建燈泡裝飾 -->
+            <circle class="light" cx="40" cy="40" r="2.5" fill="#ff0000" style="animation-delay: 0.2s"/>
+            <circle class="light" cx="60" cy="55" r="2.5" fill="#ffc300" style="animation-delay: 0.5s"/>
+            <circle class="light" cx="35" cy="70" r="2.5" fill="#ffffff" style="animation-delay: 0.8s"/>
+            <circle class="light" cx="65" cy="85" r="2.5" fill="#00f" style="animation-delay: 1.1s"/>
+            <circle class="light" cx="50" cy="65" r="2.5" fill="#0f0" style="animation-delay: 0.4s"/>
+        </svg>`;
+    }
+
+    // 當收到祝福時，產生的卡片小圖案
+    function renderCardOrnaments(count) {
+      let html = '';
+      const displayCount = Math.min(count, 10); // 最多掛10張
+      for (let i = 0; i < displayCount; i++) {
+        const top = 35 + (Math.random() * 45);
+        const range = (top / 100) * 70;
+        const left = 50 + (Math.random() - 0.5) * range;
+        const rot = (Math.random() - 0.5) * 40;
+        
+        html += `
+          <div class="card-ornament" style="top: ${top}%; left: ${left}%; transform: rotate(${rot}deg);">
+            <svg width="18" height="14" viewBox="0 0 20 16">
+              <rect width="20" height="16" rx="2" fill="#fff"/>
+              <path d="M0 0 L10 8 L20 0" fill="none" stroke="#d00000" stroke-width="1.5"/>
+              <rect x="14" y="10" width="4" height="4" fill="#ffc300"/>
+            </svg>
+          </div>
+        `;
+      }
+      return html;
+    }
+
+    function addNewTree() {
+      const name = prompt("請輸入這棵聖誕樹的名字：");
+      if (name && name.trim()) {
+        state.trees.push({
+          id: Date.now(),
+          name: name.trim(),
+          x: 10 + Math.random() * 80,
+          y: 10 + Math.random() * 65,
+          scale: 1.1 + Math.random() * 0.3,
+          rot: (Math.random() - 0.5) * 10
+        });
+        render();
+      }
+    }
+
+    function editTreeName(id, currentName) {
+      const newName = prompt("請輸入新的聖誕樹名字：", currentName);
+      if (newName !== null && newName.trim() !== "") {
+        const tree = state.trees.find(t => t.id === id);
+        if (tree) {
+          tree.name = newName.trim();
+          render();
+        }
+      }
+    }
+
+    function submitCard(event) {
+      event.preventDefault();
+      const from = document.getElementById('from-name').value;
+      const toId = parseInt(document.getElementById('to-tree').value);
+      const text = document.getElementById('message').value;
+
+      state.cards.push({ id: Date.now(), from, toId, text, image: state.tempImage });
+      state.tempImage = null;
+      state.view = 'home';
+      render();
+    }
+
+    function render() {
+      const app = document.getElementById('app');
+      
+      if (state.view === 'home') {
+        app.innerHTML = `
+          <div class="px-6 py-10 max-w-6xl mx-auto text-white relative z-10">
+            <header class="text-center mb-12">
+              <h1 class="text-4xl md:text-6xl font-bold mb-4 tracking-tighter" style="color: #ffc300; text-shadow: 0 0 20px rgba(255,195,0,0.4);">班級聖誕魔法森林</h1>
+              <p class="opacity-80">點擊樹木查看卡片，點擊 ✏️ 編輯名字！</p>
+            </header>
+            
+            <div class="flex flex-wrap justify-center gap-4 mb-12">
+              <button onclick="state.view = 'write'; render();" class="bg-[#d00000] px-8 py-3 rounded-full font-bold shadow-lg hover:scale-105 transition-all">撰寫祝福卡片</button>
+              <button onclick="addNewTree()" class="bg-[#003566] px-8 py-3 rounded-full font-bold shadow-lg hover:scale-105 transition-all border border-blue-400">種下我的樹</button>
+            </div>
+
+            <div class="forest-container">
+              ${state.trees.map(tree => {
+                const count = state.cards.filter(c => c.toId === tree.id).length;
+                return `
+                  <div class="tree-wrapper" style="left: ${tree.x}%; top: ${tree.y}%; z-index: ${Math.floor(tree.y * 10)}">
+                    <div class="tree-svg-container" style="transform: scale(${tree.scale}) rotate(${tree.rot}deg)">
+                      <div onclick="state.selectedTreeId = ${tree.id}; state.view = 'view'; render();" class="cursor-pointer relative">
+                        ${TreeIcon("#1b4332")}
+                        ${renderCardOrnaments(count)}
+                      </div>
+                    </div>
+                    <div class="mt-2 text-center">
+                      <div class="bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/20 flex items-center justify-center gap-2 group">
+                        <span class="text-sm font-bold text-white">${tree.name}</span>
+                        <button onclick="event.stopPropagation(); editTreeName(${tree.id}, '${tree.name}')" class="text-xs opacity-60 hover:opacity-100 hover:text-[#ffc300] transition-opacity" title="編輯名字">✏️</button>
+                      </div>
+                      ${count > 0 ? `<div class="text-[10px] text-[#ffc300] font-bold mt-1">💌 ${count} 封祝福</div>` : ''}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      } else if (state.view === 'write') {
+        app.innerHTML = `
+          <div class="px-6 py-12 max-w-xl mx-auto relative z-20">
+            <div class="bg-[#fffcf2] rounded-3xl p-8 shadow-2xl border-t-8 border-[#d00000]">
+              <button onclick="state.view = 'home'; render();" class="mb-6 text-gray-400 font-bold hover:text-black">← 返回森林</button>
+              <h2 class="text-3xl font-bold mb-8 text-[#001d3d] text-center">寫下溫馨祝福</h2>
+              <form onsubmit="submitCard(event)" class="space-y-5">
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-2">我是誰</label>
+                    <input type="text" id="from-name" required class="w-full px-4 py-3 rounded-xl border-2 border-gray-100 outline-none focus:border-[#d00000]" placeholder="姓名">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-2">送給誰</label>
+                    <select id="to-tree" class="w-full px-4 py-3 rounded-xl border-2 border-gray-100 outline-none focus:border-[#d00000]">
+                      ${state.trees.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-gray-500 mb-2">祝福的話</label>
+                  <textarea id="message" required rows="4" class="w-full px-4 py-3 rounded-xl border-2 border-gray-100 outline-none focus:border-[#d00000] resize-none" placeholder="聖誕快樂！祝你..."></textarea>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-xl border-2 border-dashed border-gray-200 text-center">
+                  <input type="file" accept="image/*" id="img-input" class="hidden" onchange="const f=event.target.files[0]; if(f){const r=new FileReader(); r.onload=e=>{state.tempImage=e.target.result; render();}; r.readAsDataURL(f);}">
+                  ${state.tempImage ? `
+                    <div class="relative">
+                      <img src="${state.tempImage}" class="h-32 mx-auto rounded-lg shadow">
+                      <button type="button" onclick="state.tempImage=null; render();" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 text-xs">✕</button>
+                    </div>
+                  ` : `
+                    <label for="img-input" class="cursor-pointer">
+                      <span class="text-2xl">📸</span><br>
+                      <span class="text-xs text-gray-400">上傳卡片配圖 (非必填)</span>
+                    </label>
+                  `}
+                </div>
+                <button type="submit" class="w-full bg-[#003566] text-white py-4 rounded-xl font-bold text-lg shadow-xl hover:bg-[#001d3d]">送出祝福並掛上樹 🌟</button>
+              </form>
+            </div>
+          </div>
+        `;
+      } else if (state.view === 'view') {
+        const tree = state.trees.find(t => t.id === state.selectedTreeId);
+        const cards = state.cards.filter(c => c.toId === state.selectedTreeId);
+        app.innerHTML = `
+          <div class="px-6 py-12 max-w-6xl mx-auto text-white">
+            <button onclick="state.view = 'home'; render();" class="mb-10 bg-white/10 px-6 py-2 rounded-full border border-white/20">← 返回森林</button>
+            <div class="text-center mb-12">
+              <h2 class="text-4xl font-bold text-[#ffc300]">${tree.name} 的驚喜樹</h2>
+              <p class="opacity-60 mt-2">點擊卡片翻轉內容</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+              ${cards.map(card => `
+                <div class="card h-[350px]" onclick="this.classList.toggle('flipped')">
+                  <div class="card-inner">
+                    <div class="card-front">
+                      <span class="text-5xl mb-4">💌</span>
+                      <p class="font-bold text-xl uppercase tracking-widest">來自 ${card.from}</p>
+                      <p class="text-xs mt-4 opacity-50 underline">點擊翻開祝福</p>
+                    </div>
+                    <div class="card-back p-6 text-left flex flex-col">
+                      <div class="flex-1 overflow-y-auto">
+                        ${card.image ? `<img src="${card.image}" class="w-full rounded-lg mb-4">` : ''}
+                        <p class="text-lg italic font-medium">"${card.text}"</p>
+                      </div>
+                      <div class="mt-4 pt-4 border-t text-sm font-bold text-gray-400 text-right">— ${card.from}</div>
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+            ${cards.length === 0 ? `<div class="text-center py-20 opacity-30 text-2xl font-bold">還沒有人送卡片給 ${tree.name}...</div>` : ''}
+          </div>
+        `;
+      }
+    }
+
+    render();
+  </script>
+ </body>
+</html>
